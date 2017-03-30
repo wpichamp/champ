@@ -1,4 +1,3 @@
-import subprocess
 import os
 
 files = os.listdir(os.curdir)  #files and directories

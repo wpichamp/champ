@@ -2,7 +2,7 @@ from threading import Thread
 from queue import Queue
 from random import randint
 from time import sleep
-from messages import Message
+
 
 
 class MessagePasser(Thread):
