@@ -1,10 +1,6 @@
-import sys
-from time import sleep
-from core.gui.gui_base import Ui_gui
-from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5.QtCore import (QCoreApplication, QObject, QRunnable, QThread, QThreadPool, pyqtSignal)
-from core.message_passing import MessagePasser
-from functools import partial
+from oi.core.gui.gui_base import Ui_gui
+from PyQt5 import QtCore, QtWidgets
+from common.messaging import MessagePasser
 
 
 class Controller(Ui_gui, MessagePasser):
@@ -114,13 +110,6 @@ class Controller(Ui_gui, MessagePasser):
             for arg2 in args:
                 arg1.valueChanged.connect(arg2.setValue)
 
-    def run(self):
-        while True:
-            message = self.message_queue.get()
-            print("In [" + self.name + "] Message: " + message.name)
-            if message.takes_input:
-                print("Payload: " + str(message.value))
-
     def send_toggle_button(self, button, command):
         call_me = lambda state, c=command: (
             button.setStyleSheet("QPushButton{color:firebrick;}"),
@@ -132,6 +121,13 @@ class Controller(Ui_gui, MessagePasser):
     def value_change_send_command(self, value_emitter, command):
         call_me = lambda value, c=command: (
             c.set_payload(value),
-            self.add_to_partner(c)
+            self.add_to_partner(c.get_copy())
         )
         value_emitter.valueChanged.connect(call_me)
+
+    def run(self):
+        while True:
+            message = self.message_queue.get()
+            print("In [" + self.name + "] Message: " + message.name)
+            if message.takes_input:
+                print("Payload: " + str(message.value))

@@ -1,6 +1,9 @@
-from serial import Serial
+from serial import Serial, SerialTimeoutException
 from queue import Queue, Empty
 from threading import Thread
+from time import sleep
+from random import randint
+from copy import deepcopy
 
 
 class Message(object):
@@ -44,6 +47,84 @@ class Message(object):
 
         return verbose_string
 
+    def get_copy(self):
+        return deepcopy(self)
+
+
+class MessageTXRX(Thread):
+
+    def __init__(self):
+        Thread.__init__(self)
+        self.incoming_messages = Queue()  # filled with messages
+        self.outgoing_messages = Queue()
+
+    def transmit_message(self, message):
+        message_text = message.get_verbose()
+        print("TX: " + message_text)
+
+    def run(self):
+        while True:
+            try:
+                message_to_send = self.outgoing_messages.get(False)
+                self.transmit_message(message_to_send)
+            except Empty:
+                pass
+
+
+class XbeeController(MessageTXRX):
+
+    def __init__(self, xbee_port):
+        MessageTXRX.__init__(self)
+        self.port = xbee_port
+        self.port.timeout = 0.01
+        self.running = True
+
+    def transmit_message(self, message):
+        message_bytes = message.serialize()
+        self.port.write(message_bytes)
+
+    def run(self):
+        number_of_bytes_per_message = command_container.bytes_per_message
+        incoming_message_bytes = []
+        while self.running:
+            try:
+                message_to_send = self.outgoing_messages.get(False)
+                self.transmit_message(message_to_send)
+            except Empty:
+                pass
+
+            try:
+                incoming_byte = self.port.read()  # this should just timeout, not block
+                if len(incoming_byte) > 0:
+                    incoming_message_bytes.append(incoming_byte)
+                    if len(incoming_message_bytes) == number_of_bytes_per_message:
+                        self.incoming_messages.put(command_container.decode_message_bytes(incoming_message_bytes))
+                        incoming_message_bytes = []
+            except SerialTimeoutException:
+                pass
+
+
+class MessagePasser(Thread):
+
+    def __init__(self):
+        Thread.__init__(self)
+        self.message_queue = Queue()
+        self.add_to_partner = self.bad_add_to_partner
+        self.name = None
+
+    def bad_add_to_partner(self, message):
+        raise NotImplementedError("This must get reset")
+
+    def set_partner_add_to_queue_method(self, method):
+        self.add_to_partner = method
+
+    def run(self):
+        while True:
+            message = self.message_queue.get()
+            print("In [" + self.name + "] Message: " + message.name)
+            if message.takes_input:
+                print("Payload: " + str(message.value))
+
 
 class CommandClass(object):
 
@@ -57,6 +138,8 @@ class CommandClass(object):
     grip_green_gripper = Message("Grip Green Gripper", 7)
     send_bytes_to_payload = Message("Send Bytes To Payload", 8, True)
 
+    command_dict = {}  # this gets filled in the constructor
+
     command_list = [
         rotate_orange_gripper,
         rotate_green_gripper,
@@ -69,6 +152,8 @@ class CommandClass(object):
         send_bytes_to_payload
     ]
 
+    bytes_per_message = 2
+
     def __init__(self):
         for outer_command in self.command_list:
             for inner_command in self.command_list:
@@ -78,41 +163,15 @@ class CommandClass(object):
                         exception_message += str(inner_command.name) + " Has the same ID as: " + str(outer_command.name) + " of [" + str(outer_command.command_id_number) + "]"
                         raise Exception(exception_message)
 
+        for command in self.command_list:
+            self.command_dict[command.command_id_number] = command
 
-class MessageTXRX(Thread):
-
-    def __init__(self):
-        Thread.__init__(self)
-        self.incoming_messages = Queue()  # filled with messages
-        self.outgoing_messages = Queue()
-
-    def send_message(self, message):
-        self.outgoing_messages.put(message)
-
-    def __transmit_message__(self, message):
-        message_text = message.get_verbose()
-        print("Transmitting: " + message_text)
-
-    def run(self):
-        while True:
-            try:
-                message_to_send = self.outgoing_messages.get(False)
-                self.__transmit_message__(message_to_send)
-            except Empty:
-                pass
+    def decode_message_bytes(self, message_bytes):
+        message_type = ord((message_bytes[0]))
+        message_data = ord((message_bytes[1]))
+        message = self.command_dict[message_type]
+        message.set_payload(message_data)
+        return message
 
 
-class XbeeController(MessageTXRX):
-
-    def __init__(self, port, baud_rate):
-        MessageTXRX.__init__(self)
-        self.port = Serial(port=port, baudrate=baud_rate)
-
-    def __transmit_message__(self, message):
-        """
-        Do something with the xbee
-        :param message:
-        :return:
-        """
-        message_bytes = message.serialize()
-        self.port.write(message_bytes)
+command_container = CommandClass()

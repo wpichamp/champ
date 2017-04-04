@@ -1,5 +1,4 @@
-from serial import Serial
-
+from serial import Serial, SerialException
 good_pins = [48, 49, 117, 115, 20, 60, 112, 66, 69, 45, 47, 27, 67, 68, 44, 26, 46, 65, 61]
 pin_types = ["in", "out"]
 states = [0, 1]
@@ -54,19 +53,20 @@ class UART(object):
     def __init__(self, name, baudrate):
 
         try:
-            with open("/sys/devices/bone_capemgr.9/slots", "w") as file:
+            with open("/sys/devices/platform/bone_capemgr/slots", "w") as file:
                 file.write(uarts[name])
         except IOError as e:
             if "File exists" not in str(e):
                 raise IOError(e)
 
         port = Serial(name, baudrate=baudrate)
-        port.open()
-
         self.port = port
 
     def write_bytes(self, bytes):
         self.port.write(bytes)
+
+    def read(self):
+        return self.port.read()
 
     def read_bytes(self, num_bytes):
         return self.port.read(num_bytes)
