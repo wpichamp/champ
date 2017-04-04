@@ -1,4 +1,4 @@
-from common.messaging import MessagePasser, MessageTXRX, XbeeController, CommandClass
+from common.messaging import MessagePasser, MessageTXRX, SerialPortController, CommandClass
 from queue import Empty
 from serial import Serial
 
@@ -9,7 +9,7 @@ class Robot(MessagePasser):
         MessagePasser.__init__(self)
         self.name = "robot"
 
-        self.xbee = XbeeController(Serial(port="COM21", baudrate=9600, timeout=0.01))
+        self.xbee = SerialPortController(Serial(port="COM21", baudrate=9600, timeout=0.01))
         # self.xbee = MessageTXRX()
 
         self.xbee.start()

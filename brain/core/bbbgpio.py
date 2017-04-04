@@ -50,7 +50,7 @@ class Pin(object):
 
 class UART(object):
 
-    def __init__(self, name, baudrate):
+    def __init__(self, name, baudrate, timeout):
 
         try:
             with open("/sys/devices/platform/bone_capemgr/slots", "w") as file:
@@ -59,7 +59,7 @@ class UART(object):
             if "File exists" not in str(e):
                 raise IOError(e)
 
-        port = Serial(name, baudrate=baudrate)
+        port = Serial(name, baudrate=baudrate, timeout=timeout)
         self.port = port
 
     def write_bytes(self, bytes):
@@ -74,8 +74,8 @@ class UART(object):
 
 class RS485(UART):
 
-    def __init__(self, name, baudrate, de_pin_number, re_pin_number):
-        super(RS485, self).__init__(name, baudrate)
+    def __init__(self, name, baudrate, timeout, de_pin_number, re_pin_number):
+        super(RS485, self).__init__(name, baudrate, timeout)
 
         de = Pin(de_pin_number, "out")
         re = Pin(re_pin_number, "out")
@@ -95,9 +95,13 @@ class RS485(UART):
         self.__set_tx_mode__()
         self.write_bytes(bytes)
 
-    def read(self, num_bytes):
+    def read(self):
         self.__set_rx_mode__()
-        return self.read_bytes(num_bytes)
+        return self.port.read()
+
+    def read_bytes(self, num_bytes):
+        self.__set_rx_mode__()
+        return self.port.read(num_bytes)
 
 
 

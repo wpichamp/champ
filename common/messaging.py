@@ -8,11 +8,11 @@ from copy import deepcopy
 
 class Message(object):
 
-    def __init__(self, name=None, command_id_number=None, takes_input=False, incoming_bytes=None):
+    def __init__(self, name=None, command_id_number=None, takes_input=False, payload=0, incoming_bytes=None):
         self.name = name
         self.command_id_number = command_id_number
         self.takes_input = takes_input
-        self.payload = 0
+        self.payload = payload
 
     def set_payload(self, payload):
         """
@@ -27,7 +27,7 @@ class Message(object):
         except ValueError as e:
             print("Bad conversion, error [" + str(e) + "]")
 
-        self.payload = payload
+        self.payload = value
         return self  # very important for automatic operation generation
 
     def serialize(self):
@@ -38,6 +38,7 @@ class Message(object):
         verbose_string = "Name [" + str(self.name) + "]"
         verbose_string += " Command ID number [" + str(self.command_id_number) + "]"
         verbose_string += " Takes Input [" + str(self.takes_input) + "]"
+        verbose_string += " Payload [" + str(self.payload) + "]"
 
         if self.takes_input:
             verbose_string += " Payload [" + str(self.payload) + "]"
@@ -68,22 +69,24 @@ class MessageTXRX(Thread):
                 pass
 
 
-class XbeeController(MessageTXRX):
+class SerialPortController(MessageTXRX):
 
-    def __init__(self, xbee_port):
+    def __init__(self, port):
         MessageTXRX.__init__(self)
-        self.port = xbee_port
-        self.port.timeout = 0.01
+        self.port = port
         self.running = True
 
     def transmit_message(self, message):
+        print("Transmitting Message Over Serial: " + str(message.get_verbose()))
         message_bytes = message.serialize()
         self.port.write(message_bytes)
 
     def run(self):
         number_of_bytes_per_message = command_container.bytes_per_message
         incoming_message_bytes = []
+
         while self.running:
+
             try:
                 message_to_send = self.outgoing_messages.get(False)
                 self.transmit_message(message_to_send)
