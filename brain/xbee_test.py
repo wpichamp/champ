@@ -1,9 +1,9 @@
-from brain.core.bbbgpio import UART, pin
+from brain.core.bbbgpio import UART, Pin
 from threading import Thread
 from time import sleep
 
 uart = UART("/dev/ttyO2", 9600)
-pin = pin(60, "out")
+pin = Pin(60, "out")
 
 delay = 10
 while True:

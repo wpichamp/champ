@@ -12,7 +12,7 @@ class Message(object):
         self.name = name
         self.command_id_number = command_id_number
         self.takes_input = takes_input
-        self.payload = None
+        self.payload = 0
 
     def set_payload(self, payload):
         """
@@ -31,10 +31,7 @@ class Message(object):
         return self  # very important for automatic operation generation
 
     def serialize(self):
-        values = [int(self.command_id_number)]
-        if self.takes_input:
-            values.append(int(self.payload))
-        print(values)
+        values = [int(self.command_id_number), int(self.payload)]
         return bytearray(values)
 
     def get_verbose(self):

@@ -1,11 +1,11 @@
 from serial import Serial, SerialException
-good_pins = [48, 49, 117, 115, 20, 60, 112, 66, 69, 45, 47, 27, 67, 68, 44, 26, 46, 65, 61]
+good_pins = [48, 49, 115, 20, 60, 112, 66, 69, 45, 47, 27, 67, 68, 44, 26, 46, 65, 61]
 pin_types = ["in", "out"]
 states = [0, 1]
 uarts = {"/dev/ttyO1" : "BB-UART1", "/dev/ttyO2" : "BB-UART2"}
 
 
-class pin(object):
+class Pin(object):
 
     def __init__(self, pin_name, config_state):
 
@@ -32,7 +32,7 @@ class pin(object):
 
         self.type = type
 
-        with open("/sys/class/gpio/gpio" + str(self.pin_name) + "/direction" , "w") as file:
+        with open("/sys/class/gpio/gpio" + str(self.pin_name) + "/direction", "w") as file:
             file.write(type)
 
 
@@ -44,7 +44,7 @@ class pin(object):
         if state not in states:
             raise Exception("Not a valid state")
 
-        with open("/sys/class/gpio/gpio" + str(self.pin_name) + "/value" , "w") as file:
+        with open("/sys/class/gpio/gpio" + str(self.pin_name) + "/value", "w") as file:
             file.write(str(state))
 
 
@@ -77,8 +77,8 @@ class RS485(UART):
     def __init__(self, name, baudrate, de_pin_number, re_pin_number):
         super(RS485, self).__init__(name, baudrate)
 
-        de = pin(de_pin_number, "out")
-        re = pin(re_pin_number, "out")
+        de = Pin(de_pin_number, "out")
+        re = Pin(re_pin_number, "out")
 
         self.de_pin = de
         self.re_pin = re
