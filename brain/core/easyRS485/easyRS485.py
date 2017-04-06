@@ -1,4 +1,23 @@
-from commands import Message
+from brain.core.easyRS485.commands import Message
+
+
+class Command(object):
+
+    def __init__(self, command_id):
+        self.command_id = command_id
+
+
+class CommandGroup(object):
+
+    def __init__(self, group_id=None):
+        self.group_id = group_id
+
+
+class CHAMPCommands(CommandGroup):
+
+    orange_gripper = CommandGroup(0)
+    orange_gripper.grip = Command(1)
+
 
 class Network(object):
 

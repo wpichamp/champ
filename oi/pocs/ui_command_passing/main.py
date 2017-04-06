@@ -1,6 +1,6 @@
 from threading import Thread
 from queue import Queue
-from random import randint
+from haha import randint
 from time import sleep
 
 

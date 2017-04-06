@@ -2,7 +2,6 @@ from serial import Serial, SerialTimeoutException
 from queue import Queue, Empty
 from threading import Thread
 from time import sleep
-from random import randint
 from copy import deepcopy
 
 
@@ -40,9 +39,6 @@ class Message(object):
         verbose_string += " Takes Input [" + str(self.takes_input) + "]"
         verbose_string += " Payload [" + str(self.payload) + "]"
 
-        if self.takes_input:
-            verbose_string += " Payload [" + str(self.payload) + "]"
-
         return verbose_string
 
     def get_copy(self):
@@ -76,11 +72,6 @@ class SerialPortController(MessageTXRX):
         self.port = port
         self.running = True
 
-    def transmit_message(self, message):
-        print("Transmitting Message Over Serial: " + str(message.get_verbose()))
-        message_bytes = message.serialize()
-        self.port.write(message_bytes)
-
     def run(self):
         number_of_bytes_per_message = command_container.bytes_per_message
         incoming_message_bytes = []
@@ -89,7 +80,9 @@ class SerialPortController(MessageTXRX):
 
             try:
                 message_to_send = self.outgoing_messages.get(False)
-                self.transmit_message(message_to_send)
+                print("Transmitting Message Over Serial: " + str(message_to_send.get_verbose()))
+                message_bytes = message_to_send.serialize()
+                self.port.write(message_bytes)
             except Empty:
                 pass
 

@@ -12,8 +12,8 @@ class CHAMP(Thread):
     def __init__(self):
         Thread.__init__(self)
 
-        xbee_port = UART(xbee_uart_port, 9600, 0)
         bus_port = RS485(bus_uart_port, 9600, 0, de_pin_number=49, re_pin_number=115)
+        xbee_port = UART(xbee_uart_port, 9600, 0)
 
         self.bus = SerialPortController(bus_port)
         self.xbee = SerialPortController(xbee_port)
@@ -62,6 +62,8 @@ class CHAMP(Thread):
                 pass
 
 if __name__ == "__main__":
+
+    print("Starting Robot in BBB")
 
     c = CHAMP()
 
