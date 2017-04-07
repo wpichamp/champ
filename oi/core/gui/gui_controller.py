@@ -5,18 +5,18 @@ from common.messaging import MessagePasser
 
 class Controller(Ui_gui, MessagePasser):
 
-    def __init__(self, dialog, commands_container):
+    def __init__(self, dialog, robot_topography):
         Ui_gui.__init__(self)
         MessagePasser.__init__(self)
         self.setupUi(dialog)  # from super
         self.name = "UI"
 
-        self.commands_container = commands_container
+        self.robot_topography = robot_topography
 
         self.init_debug_table()
 
-        self.send_toggle_button(self.toggle_og_pushButton, self.commands_container.grip_orange_gripper)
-        self.send_toggle_button(self.toggle_gg_pushButton, self.commands_container.grip_green_gripper)
+        self.send_toggle_button(self.toggle_og_pushButton, self.robot_topography.orange_gripper.grip)
+        self.send_toggle_button(self.toggle_gg_pushButton, self.robot_topography.green_gripper.grip)
 
         linked_controls = [
             [self.wpp_target_upper_verticalSlider, self.wpp_target_lower_verticalSlider, self.wpp_target_spinBox],
@@ -36,11 +36,11 @@ class Controller(Ui_gui, MessagePasser):
             self.link_values(control_group)
 
         value_change_to_command_pairs = [
-            [self.wpp_target_upper_verticalSlider, self.commands_container.set_w_pp_extension],
-            [self.spp_target_upper_verticalSlider, self.commands_container.set_s_pp_extension],
-            [self.xpp_target_upper_verticalSlider, self.commands_container.set_x_pp_extension],
-            [self.og_target_angle_dial, self.commands_container.rotate_orange_gripper],
-            [self.gg_target_angle_dial, self.commands_container.rotate_green_gripper],
+            [self.wpp_target_upper_verticalSlider, self.robot_topography.abdomen.w_pp.set_extension],
+            [self.spp_target_upper_verticalSlider, self.robot_topography.abdomen.s_pp.set_extension],
+            [self.xpp_target_upper_verticalSlider, self.robot_topography.abdomen.x_pp.set_extension],
+            [self.og_target_angle_dial, self.robot_topography.orange_gripper.rotate],
+            [self.gg_target_angle_dial, self.robot_topography.green_gripper.rotate],
         ]
         for pair in value_change_to_command_pairs:
             self.value_change_send_command(pair[0], pair[1])
@@ -83,7 +83,7 @@ class Controller(Ui_gui, MessagePasser):
         self.tableWidget.setColumnCount(2)
         self.tableWidget.setHorizontalHeaderLabels(["Command", "Input"])
 
-        for robot_command in self.commands_container.command_list:
+        for robot_command in self.robot_topography.get_all_messages():
 
             target_row = self.tableWidget.rowCount()
             self.tableWidget.insertRow(target_row)
@@ -91,13 +91,8 @@ class Controller(Ui_gui, MessagePasser):
             action_button = QtWidgets.QPushButton(robot_command.name)
             self.tableWidget.setCellWidget(target_row, 0, action_button)
 
-            if robot_command.takes_input:
-                user_input = QtWidgets.QLineEdit()
-                action_button.clicked.connect(lambda state, r=robot_command, i=user_input: self.add_to_partner(r.set_payload(i.text())))
-            else:
-                user_input = QtWidgets.QLabel("NONE")
-                user_input.setAlignment(QtCore.Qt.AlignCenter)
-                action_button.clicked.connect(lambda state, r=robot_command: self.add_to_partner(r))
+            user_input = QtWidgets.QLineEdit()
+            action_button.clicked.connect(lambda state, r=robot_command, i=user_input: self.add_to_partner(r.set_payload(int(i.text()))))
 
             self.tableWidget.setCellWidget(target_row, 1, user_input)
 

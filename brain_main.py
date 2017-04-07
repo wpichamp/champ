@@ -1,5 +1,5 @@
 from brain.core.bbbgpio import UART, RS485
-from common.messaging import Message, command_container, SerialPortController
+from common.messaging import Message, SerialPortController, robot
 from threading import Thread
 from queue import Empty
 
@@ -25,20 +25,22 @@ class CHAMP(Thread):
 
     def process_user_message(self, message):
         """
-        I don't really like the way this is handled, could do some kind of handler dictionary
+        Kind of a switch case for handling the different kinds of commands coming from the user
         This is about is simple as it gets though, maybe it'll stay
         :param message: the message that is going to be processed
         :return: nothing
         """
 
-        if message is command_container.grip_orange_gripper:
-            print("grip the orange gripper!")
-        elif message is command_container.grip_green_gripper:
-            print("grip the green gripper")
-        elif message is command_container.set_w_pp_extension:
-            # print("set extension")
-            output_message = Message(name="ToBus", command_id_number=0, payload=message.payload)
-            self.bus.outgoing_messages.put(output_message)
+        pass_through_commands = [
+                                    robot.orange_gripper.rotate,
+                                    robot.green_gripper.rotate,
+                                    robot.abdomen.w_pp.set_extension,
+                                    robot.abdomen.s_pp.set_extension,
+                                    robot.abdomen.x_pp.set_extension
+                                 ]
+
+        if message in pass_through_commands:
+            print("Passing through: " + str(message.get_verbose()))
         else:
             print("No handler set up for message: " + str(message.get_verbose()))
 

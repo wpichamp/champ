@@ -1,48 +1,10 @@
 from serial import Serial, SerialTimeoutException
 from queue import Queue, Empty
 from threading import Thread
-from time import sleep
 from copy import deepcopy
 
-
-class Message(object):
-
-    def __init__(self, name=None, command_id_number=None, takes_input=False, payload=0, incoming_bytes=None):
-        self.name = name
-        self.command_id_number = command_id_number
-        self.takes_input = takes_input
-        self.payload = payload
-
-    def set_payload(self, payload):
-        """
-        Value should be filtered here, like if you want to take the input and multiply it by 10 before it goes out
-        By default, it converts the value to an int
-        :param payload:
-        :return:
-        """
-
-        try:
-            value = int(payload)
-        except ValueError as e:
-            print("Bad conversion, error [" + str(e) + "]")
-
-        self.payload = value
-        return self  # very important for automatic operation generation
-
-    def serialize(self):
-        values = [int(self.command_id_number), int(self.payload)]
-        return bytearray(values)
-
-    def get_verbose(self):
-        verbose_string = "Name [" + str(self.name) + "]"
-        verbose_string += " Command ID number [" + str(self.command_id_number) + "]"
-        verbose_string += " Takes Input [" + str(self.takes_input) + "]"
-        verbose_string += " Payload [" + str(self.payload) + "]"
-
-        return verbose_string
-
-    def get_copy(self):
-        return deepcopy(self)
+message_size = 7
+message_header_size = 5
 
 
 class MessageTXRX(Thread):
@@ -73,25 +35,27 @@ class SerialPortController(MessageTXRX):
         self.running = True
 
     def run(self):
-        number_of_bytes_per_message = command_container.bytes_per_message
         incoming_message_bytes = []
 
         while self.running:
 
             try:
                 message_to_send = self.outgoing_messages.get(False)
-                print("Transmitting Message Over Serial: " + str(message_to_send.get_verbose()))
+                print("Serial TX: " + str(message_to_send.get_verbose()))
                 message_bytes = message_to_send.serialize()
-                self.port.write(message_bytes)
+                print(message_bytes)
+                self.port.write(bytearray(message_bytes))
             except Empty:
                 pass
 
             try:
                 incoming_byte = self.port.read()  # this should just timeout, not block
                 if len(incoming_byte) > 0:
-                    incoming_message_bytes.append(incoming_byte)
-                    if len(incoming_message_bytes) == number_of_bytes_per_message:
-                        self.incoming_messages.put(command_container.decode_message_bytes(incoming_message_bytes))
+                    formatted_byte = ord(incoming_byte)
+                    incoming_message_bytes.append(formatted_byte)
+                    if len(incoming_message_bytes) == message_size:
+                        incoming_message = robot.reconstruct_message(incoming_message_bytes)
+                        self.incoming_messages.put(incoming_message)
                         incoming_message_bytes = []
             except SerialTimeoutException:
                 pass
@@ -119,52 +83,129 @@ class MessagePasser(Thread):
                 print("Payload: " + str(message.value))
 
 
-class CommandClass(object):
+class Stacker(object):
 
-    rotate_orange_gripper = Message("Rotate Orange Gripper", 0, True)
-    rotate_green_gripper = Message("Rotate Green Gripper", 1, True)
-    set_w_pp_extension = Message("Set W PP Extension", 2, True)
-    set_s_pp_extension = Message("Set S PP Extension", 3, True)
-    set_x_pp_extension = Message("Set X PP Extension", 4, True)
-    send_bytes_to_bus = Message("Send Bytes To Bus", 5, True)
-    grip_orange_gripper = Message("Grip Orange Gripper", 6)
-    grip_green_gripper = Message("Grip Green Gripper", 7)
-    send_bytes_to_payload = Message("Send Bytes To Payload", 8, True)
+    def __init__(self, id_number=None, name=None):
+        self.name = name
+        self.id_number = id_number
+        self.prefex = []
+        if id_number is not None:
+            self.prefex = [id_number]
 
-    command_dict = {}  # this gets filled in the constructor
-
-    command_list = [
-        rotate_orange_gripper,
-        rotate_green_gripper,
-        set_w_pp_extension,
-        set_s_pp_extension,
-        set_x_pp_extension,
-        send_bytes_to_bus,
-        grip_green_gripper,
-        grip_orange_gripper,
-        send_bytes_to_payload
-    ]
-
-    bytes_per_message = 2
-
-    def __init__(self):
-        for outer_command in self.command_list:
-            for inner_command in self.command_list:
-                if outer_command is not inner_command:
-                    if outer_command.command_id_number == inner_command.command_id_number:
-                        exception_message = "You can't have two commands with the same ID! "
-                        exception_message += str(inner_command.name) + " Has the same ID as: " + str(outer_command.name) + " of [" + str(outer_command.command_id_number) + "]"
-                        raise Exception(exception_message)
-
-        for command in self.command_list:
-            self.command_dict[command.command_id_number] = command
-
-    def decode_message_bytes(self, message_bytes):
-        message_type = ord((message_bytes[0]))
-        message_data = ord((message_bytes[1]))
-        message = self.command_dict[message_type]
-        message.set_payload(message_data)
-        return message
+    def safe_add(self, incoming_item, items):
+        for item in items:
+            if item.id_number == incoming_item.id_number:
+                raise ValueError(
+                    "A message with the id: " + str(item.id_number) + " already exists.")
+        incoming_item.name = self.name + "->" + incoming_item.name
+        incoming_item.prefex = self.prefex + incoming_item.prefex
+        items.append(incoming_item)
+        return incoming_item
 
 
-command_container = CommandClass()
+class Message(Stacker):
+
+    def __init__(self, message_id=None, message_name=None):
+        Stacker.__init__(self, message_id, message_name)
+        self.payload = 0
+
+    def set_payload(self, payload_value):
+        self.payload = payload_value
+        return self
+
+    def serialize(self):
+        buffer_length = message_header_size - len(self.prefex)
+        buffer = []
+        if buffer_length > 0:
+            for x in range(buffer_length):
+                buffer.append(0)
+        else:
+            buffer_length = 0
+
+        full_message = self.prefex + buffer + [self.payload, len(self.prefex)]
+
+        return full_message
+
+    def get_verbose(self):
+        verbose_string = "Name [" + str(self.name) + "]"
+        verbose_string += " Payload [" + str(self.payload) + "]"
+        verbose_string += " Serialized [" + str(self.serialize()) + "]"
+        return verbose_string
+
+    def get_copy(self):
+        return deepcopy(self)
+
+
+class MessageContainer(Stacker):
+
+    def __init__(self, container_id=None, container_name=None):
+        Stacker.__init__(self, container_id, container_name)
+        self.sub_containers = []
+        self.messages = []
+
+    def add_sub_container(self, incoming_container):
+        return self.safe_add(incoming_container, self.sub_containers)
+
+    def add_message(self, incoming_message):
+        return self.safe_add(incoming_message, self.messages)
+
+    def reconstruct_message(self, message_list):
+        depth = message_list[-1]
+        payload = message_list[-2]
+        header = message_list[0:depth]
+        message_id = header[-1]
+
+        current_container = self
+        good_container = None
+        found = False
+
+        for header_id in header:
+
+            for sub_container in current_container.sub_containers:
+                if sub_container.id_number == header_id:
+                    current_container = sub_container
+                    break
+
+            if current_container.id_number == header_id:
+                good_container = current_container
+                found = True
+
+        if found:
+            for message in good_container.messages:
+                if message.id_number == message_id:
+                    return message.set_payload(payload)
+
+        raise ValueError("Message not found matching that stream")
+
+
+    def get_all_messages(self):
+        output = []
+        self.get_messages(self, output)
+        return output
+
+    def get_messages(self, container, output):
+        sub_containers = container.sub_containers
+        for container in sub_containers:
+            output += container.messages
+            self.get_messages(container, output)
+
+
+robot = MessageContainer(container_name="CHAMP")
+
+robot.abdomen = robot.add_sub_container(MessageContainer(0, "Abdomen"))
+robot.abdomen.w_pp = robot.abdomen.add_sub_container(MessageContainer(0, "W Push Pull"))
+robot.abdomen.w_pp.set_extension = robot.abdomen.w_pp.add_message(Message(0, "Set Extension"))
+robot.abdomen.s_pp = robot.abdomen.add_sub_container(MessageContainer(1, "S Push Pull"))
+robot.abdomen.s_pp.set_extension = robot.abdomen.s_pp.add_message(Message(0, "Set Extension"))
+robot.abdomen.x_pp = robot.abdomen.add_sub_container(MessageContainer(2, "X Push Pull"))
+robot.abdomen.x_pp.set_extension = robot.abdomen.x_pp.add_message(Message(0, "Set Extension"))
+
+robot.orange_gripper = robot.add_sub_container(MessageContainer(1, "Orange Gripper"))
+robot.orange_gripper.grip = robot.orange_gripper.add_message(Message(0, "Grip"))
+robot.orange_gripper.ungrip = robot.orange_gripper.add_message(Message(1, "Un Grip"))
+robot.orange_gripper.rotate = robot.orange_gripper.add_message(Message(2, "Rotate"))
+
+robot.green_gripper = robot.add_sub_container(MessageContainer(2, "Green Gripper"))
+robot.green_gripper.grip = robot.green_gripper.add_message(Message(0, "Grip"))
+robot.green_gripper.ungrip = robot.green_gripper.add_message(Message(1, "Un Grip"))
+robot.green_gripper.rotate = robot.green_gripper.add_message(Message(2, "Rotate"))

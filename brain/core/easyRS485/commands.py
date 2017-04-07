@@ -1,3 +1,4 @@
+"""
 command_name_to_type = {"GetStatus": 0}
 
 
@@ -44,3 +45,4 @@ class GetStatus(Message):
 
     def __init__(self, incoming=None):
         super(GetStatus, self).__init__(incoming)
+"""

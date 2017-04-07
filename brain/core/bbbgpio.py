@@ -59,6 +59,7 @@ class UART(object):
                 raise IOError(e)
 
         port = Serial(name, baudrate=baudrate, timeout=timeout)
+        port.reset_input_buffer()
         self.port = port
 
     def write(self, tx_bytes):
