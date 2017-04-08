@@ -29,11 +29,12 @@ class MessageTXRX(Thread):
 
 class SerialPortController(MessageTXRX):
 
-    def __init__(self, port, decode_function):
+    def __init__(self, port, decode_function, message_length):
         MessageTXRX.__init__(self)
         self.port = port
         self.running = True
         self.decode_function = decode_function
+        self.message_length = message_length
 
     def run(self):
         incoming_message_bytes = []
@@ -54,7 +55,7 @@ class SerialPortController(MessageTXRX):
                 if len(incoming_byte) > 0:
                     formatted_byte = ord(incoming_byte)
                     incoming_message_bytes.append(formatted_byte)
-                    if len(incoming_message_bytes) == message_size:
+                    if len(incoming_message_bytes) == self.message_length:
                         incoming_message = self.decode_function(incoming_message_bytes)
                         self.incoming_messages.put(incoming_message)
                         incoming_message_bytes = []
@@ -137,11 +138,6 @@ class Message(Stacker):
         return deepcopy(self)
 
 
-class RootContainer(object):
-
-    def __init__(self, name):
-        self.name = name
-
 class MessageContainer(Stacker):
 
     def __init__(self, container_id=None, container_name=None):
@@ -154,6 +150,25 @@ class MessageContainer(Stacker):
 
     def add_message(self, incoming_message):
         return self.safe_add(incoming_message, self.messages)
+
+    def get_all_messages(self):
+        output = []
+        output += self.messages
+        self.get_messages(self, output)
+        return output
+
+    def get_messages(self, container, output):
+        sub_containers = container.sub_containers
+        for container in sub_containers:
+            output += container.messages
+            self.get_messages(container, output)
+
+
+class RootContainer(object):
+
+    def __init__(self, name):
+
+        self.name = name
 
     def decode_message(self, message_list):
         depth = message_list[-1]
@@ -182,14 +197,3 @@ class MessageContainer(Stacker):
                     return message.set_payload(payload)
 
         raise ValueError("Message not found matching that stream")
-
-    def get_all_messages(self):
-        output = []
-        self.get_messages(self, output)
-        return output
-
-    def get_messages(self, container, output):
-        sub_containers = container.sub_containers
-        for container in sub_containers:
-            output += container.messages
-            self.get_messages(container, output)

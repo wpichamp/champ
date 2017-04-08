@@ -19,3 +19,5 @@ robot.green_gripper = robot.add_sub_container(MessageContainer(2, "Green Gripper
 robot.green_gripper.grip = robot.green_gripper.add_message(Message(0, "Grip"))
 robot.green_gripper.ungrip = robot.green_gripper.add_message(Message(1, "Un Grip"))
 robot.green_gripper.rotate = robot.green_gripper.add_message(Message(2, "Rotate"))
+
+message_length = 7
