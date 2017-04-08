@@ -5,10 +5,10 @@ from serial import Serial
 
 class Robot(MessagePasser):
 
-    def __init__(self):
+    def __init__(self, robot_topology):
         MessagePasser.__init__(self)
         self.name = "robot"
-        self.xbee = SerialPortController(Serial(port="COM21", baudrate=9600, timeout=0.01))
+        self.xbee = SerialPortController(Serial(port="COM21", baudrate=9600, timeout=0.01), robot_topology.decode_message, robot_topology.message_length)
         self.xbee.start()
 
     def process_message(self, message):

@@ -3,10 +3,6 @@ from queue import Queue, Empty
 from threading import Thread
 from copy import deepcopy
 
-message_size = 7
-message_header_size = 5
-
-
 class MessageTXRX(Thread):
 
     def __init__(self):
@@ -85,38 +81,32 @@ class MessagePasser(Thread):
                 print("Payload: " + str(message.value))
 
 
-class Stacker(object):
-
-    def __init__(self, id_number=None, name=None):
-        self.name = name
+class MessageCommon(object):
+    def __init__(self, id_number, name):
         self.id_number = id_number
-        self.prefex = []
-        if id_number is not None:
-            self.prefex = [id_number]
+        self.name = name
 
-    def safe_add(self, incoming_item, items):
+    def search_for_matching_id(self, incoming_item, items):
         for item in items:
             if item.id_number == incoming_item.id_number:
                 raise ValueError(
                     "A message with the id: " + str(item.id_number) + " already exists.")
-        incoming_item.name = self.name + "->" + incoming_item.name
-        incoming_item.prefex = self.prefex + incoming_item.prefex
-        items.append(incoming_item)
-        return incoming_item
 
 
-class Message(Stacker):
+class Message(MessageCommon):
 
-    def __init__(self, message_id=None, message_name=None):
-        Stacker.__init__(self, message_id, message_name)
+    def __init__(self, message_id, message_name):
+        MessageCommon.__init__(self, message_id, message_name)
+        self.prefex = [message_id]
         self.payload = 0
+        self.message_header_size = None
 
     def set_payload(self, payload_value):
         self.payload = payload_value
         return self
 
     def serialize(self):
-        buffer_length = message_header_size - len(self.prefex)
+        buffer_length = self.message_header_size - len(self.prefex)
         buffer = []
         if buffer_length > 0:
             for x in range(buffer_length):
@@ -138,18 +128,47 @@ class Message(Stacker):
         return deepcopy(self)
 
 
-class MessageContainer(Stacker):
+class MessageContainer(MessageCommon):
 
-    def __init__(self, container_id=None, container_name=None):
-        Stacker.__init__(self, container_id, container_name)
+    def __init__(self, container_id, container_name):
+        MessageCommon.__init__(self, container_id, container_name)
+        self.prefex = []
+        if container_id is not None:
+            self.prefex = [container_id]
+
+        self.max_depth = None
+        self.remaining_depth = None
+
+        self.sub_layer_occupied = False
+
         self.sub_containers = []
         self.messages = []
 
+    def thing(self):
+        if self.sub_layer_occupied is False:
+            self.remaining_depth -= 1
+            if self.remaining_depth < 0:
+                raise ValueError("The tree is too deep!")
+            self.sub_layer_occupied = True
+        print("Remaining Depth: " + str(self.remaining_depth))
+
     def add_sub_container(self, incoming_container):
-        return self.safe_add(incoming_container, self.sub_containers)
+        self.search_for_matching_id(incoming_container, self.sub_containers)
+        incoming_container.name = self.name + "->" + incoming_container.name
+        self.sub_containers.append(incoming_container)
+        print("Adding: " + str(incoming_container.name))
+        self.thing()
+        incoming_container.remaining_depth = self.remaining_depth
+        incoming_container.max_depth = self.max_depth
+        return incoming_container
 
     def add_message(self, incoming_message):
-        return self.safe_add(incoming_message, self.messages)
+        self.search_for_matching_id(incoming_message, self.messages)
+        incoming_message.name = self.name + "->" + incoming_message.name
+        incoming_message.prefex = self.prefex + incoming_message.prefex
+        self.messages.append(incoming_message)
+        incoming_message.message_header_size = self.max_depth
+        return incoming_message
 
     def get_all_messages(self):
         output = []
@@ -164,11 +183,15 @@ class MessageContainer(Stacker):
             self.get_messages(container, output)
 
 
-class RootContainer(object):
+class RootContainer(MessageCommon):
 
-    def __init__(self, name):
-
-        self.name = name
+    def __init__(self, container_name, max_depth):
+        MessageCommon.__init__(self, 0, container_name)
+        self.sub_containers = []
+        self.remaining_depth = max_depth
+        self.max_depth = max_depth
+        self.sub_layer_occupied = False
+        self.message_length = max_depth + 2
 
     def decode_message(self, message_list):
         depth = message_list[-1]
@@ -197,3 +220,27 @@ class RootContainer(object):
                     return message.set_payload(payload)
 
         raise ValueError("Message not found matching that stream")
+
+    def thing(self):
+        if self.sub_layer_occupied is False:
+            self.remaining_depth -= 1
+            if self.remaining_depth < 0:
+                raise ValueError("The tree is too deep!")
+            self.sub_layer_occupied = True
+        print("Remaining Depth: " + str(self.remaining_depth))
+
+    def add_sub_container(self, incoming_container):
+        self.search_for_matching_id(incoming_container, self.sub_containers)
+        incoming_container.name = self.name + "->" + incoming_container.name
+        self.sub_containers.append(incoming_container)
+        print("Adding: " + str(incoming_container.name))
+        self.thing()
+        incoming_container.remaining_depth = self.remaining_depth
+        incoming_container.max_depth = self.max_depth
+        return incoming_container
+
+    def get_all_messages(self):
+        output = []
+        for container in self.sub_containers:
+            output += container.get_all_messages()
+        return output
