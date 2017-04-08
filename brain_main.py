@@ -1,5 +1,6 @@
 from brain.core.bbbgpio import UART, RS485
-from common.messaging import Message, SerialPortController, robot
+from common.messaging import Message, SerialPortController
+from common.robot_topology import robot
 from threading import Thread
 from queue import Empty
 
@@ -9,14 +10,16 @@ bus_uart_port = "/dev/ttyO2"
 
 class CHAMP(Thread):
 
-    def __init__(self):
+    def __init__(self, robot_topography):
         Thread.__init__(self)
+
+        self.robot_topography = robot_topography
 
         bus_port = RS485(bus_uart_port, 9600, 0, de_pin_number=49, re_pin_number=115)
         xbee_port = UART(xbee_uart_port, 9600, 0)
 
-        self.bus = SerialPortController(bus_port)
-        self.xbee = SerialPortController(xbee_port)
+        self.bus = SerialPortController(bus_port, self.robot_topography.decode_message)
+        self.xbee = SerialPortController(xbee_port, self.robot_topography.decode_message)
 
         self.bus.start()
         self.xbee.start()
@@ -67,7 +70,7 @@ if __name__ == "__main__":
 
     print("Starting Robot in BBB")
 
-    c = CHAMP()
+    c = CHAMP(robot)
 
     c.start()
 
