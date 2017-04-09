@@ -123,7 +123,7 @@ class Message(MessageCommon):
                 buffer.append(0)
 
         full_message = self.prefex + buffer + [self.payload, len(self.prefex)]
-
+        print(full_message)
         message_bytes = bytearray(full_message)
         checksum = sum(message_bytes)  # pythonic way to do checksums, good enough for me
         message_bytes.append(checksum)
@@ -182,6 +182,16 @@ class MessageContainer(AbstractContainer):
         self.messages.append(incoming_message)
         incoming_message.message_header_size = self.max_depth
         return incoming_message
+
+    def add_sub_container(self, incoming_container):
+        self.search_for_matching_id(incoming_container, self.sub_containers)
+        incoming_container.name = self.name + "->" + incoming_container.name
+        self.sub_containers.append(incoming_container)
+        self.modify_depth()
+        incoming_container.prefex = self.prefex + incoming_container.prefex
+        incoming_container.remaining_depth = self.remaining_depth
+        incoming_container.max_depth = self.max_depth
+        return incoming_container
 
     def get_all_messages(self):
         output = []
