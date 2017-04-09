@@ -34,7 +34,8 @@ class SerialPortController(MessageTXRX):
         self.message_length = message_length
 
     def run(self):
-        incoming_message_bytes = []
+
+        incoming_message_bytes = bytearray()
 
         while self.running:
 
@@ -42,19 +43,27 @@ class SerialPortController(MessageTXRX):
                 message_to_send = self.outgoing_messages.get(False)
                 print("Serial TX: " + str(message_to_send.get_verbose()))
                 message_bytes = message_to_send.serialize()
-                self.port.write(bytearray(message_bytes))
+                self.port.write(message_bytes)
             except Empty:
                 pass
 
             try:
                 incoming_byte = self.port.read()  # this should just timeout, not block
                 if len(incoming_byte) > 0:
-                    formatted_byte = ord(incoming_byte)
-                    incoming_message_bytes.append(formatted_byte)
-                    if len(incoming_message_bytes) == self.message_length:
-                        incoming_message = self.decode_function(incoming_message_bytes)
-                        self.incoming_messages.put(incoming_message)
-                        incoming_message_bytes = []
+                    incoming_message_bytes += incoming_byte
+                    if len(incoming_message_bytes) > 0:
+                        if len(incoming_message_bytes) == self.message_length:
+                            try:
+                                incoming_message = self.decode_function(incoming_message_bytes)
+                                self.incoming_messages.put(incoming_message)
+                            except ValueError or OSError as e:
+                                # something has gone wrong with the transmission
+                                # reset the input buffer of the port
+                                print("problem with transmission: [" + str(e) + "]")
+                                pass
+
+                            # self.incoming_messages.put(incoming_message)
+                            incoming_message_bytes = bytearray()
             except SerialTimeoutException:
                 pass
 
@@ -107,16 +116,19 @@ class Message(MessageCommon):
 
     def serialize(self):
         buffer_length = self.message_header_size - len(self.prefex)
+
         buffer = []
         if buffer_length > 0:
             for x in range(buffer_length):
                 buffer.append(0)
-        else:
-            buffer_length = 0
 
         full_message = self.prefex + buffer + [self.payload, len(self.prefex)]
 
-        return full_message
+        message_bytes = bytearray(full_message)
+        checksum = sum(message_bytes)  # pythonic way to do checksums, good enough for me
+        message_bytes.append(checksum)
+
+        return message_bytes
 
     def get_verbose(self):
         verbose_string = "Name [" + str(self.name) + "]"
@@ -189,13 +201,41 @@ class RootContainer(AbstractContainer):
     def __init__(self, container_name, max_depth):
         AbstractContainer.__init__(self, 0, container_name, max_depth=max_depth, remaining_depth=max_depth)
         self.remaining_depth = max_depth
-        self.message_length = max_depth + 2
+        self.message_length = max_depth + 3
 
-    def decode_message(self, message_list):
-        depth = message_list[-1]
-        payload = message_list[-2]
+    def pre_process_incoming_bytes(self, incoming_bytes):
+        checksum = incoming_bytes[-1]
+        other_part_of_message = incoming_bytes[0:-1]
+
+        good_checksum = (checksum == sum(other_part_of_message))
+
+        if not good_checksum:
+            raise OSError("The checksum has failed, there is something wrong with the hardware")
+
+        output = []
+        for incoming_byte in incoming_bytes:
+            output.append((incoming_byte))
+        return output
+
+
+    def decode_message(self, incoming):
+        message_list = self.pre_process_incoming_bytes(incoming)
+
+        # print("Message List: " + str(message_list))
+        checksum = message_list[-1] # shouldn't be used, broken out for debugging purposes.
+        depth = message_list[-2]
+        payload = message_list[-3]
+
         header = message_list[0:depth]
         message_id = header[-1]
+
+        """
+        print("Checksum: " + str(checksum))
+        print("Depth: " + str(depth))
+        print("Payload: " + str(payload))
+        print("Header: " + str(header))
+        print("Message ID: " + str(message_id))
+        """
 
         current_container = self
         good_container = None

@@ -37,7 +37,7 @@ class BusController(Thread):
                 try:
                     message_to_send = bus_module.outgoing_messages.get(False)
                     message_bytes = message_to_send.serialize()
-                    self.port.write(bytearray(message_bytes))
+                    self.port.write(message_bytes)
 
                     # read in response from module as well
 
