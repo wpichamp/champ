@@ -62,29 +62,25 @@ class Controller(Ui_gui, MessagePasser):
 
     def change_all_rods(self, is_increase, delta):
 
-        rods = [self.wpp_target_upper_verticalSlider,
-                self.spp_target_upper_verticalSlider,
-                self.xpp_target_upper_verticalSlider
+        rods = [
+            self.wpp_target_upper_verticalSlider,
+            self.spp_target_upper_verticalSlider,
+            self.xpp_target_upper_verticalSlider
         ]
 
         for rod in rods:
-
             current_value = int(rod.value())
-
             if is_increase:
                 current_value += delta
             else:
                 current_value -= delta
-
             rod.setValue(current_value)
 
     def init_debug_table(self):
-
         self.tableWidget.setColumnCount(2)
         self.tableWidget.setHorizontalHeaderLabels(["Command", "Input"])
 
         for robot_command in self.robot_topography.get_all_messages():
-
             target_row = self.tableWidget.rowCount()
             self.tableWidget.insertRow(target_row)
 
