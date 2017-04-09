@@ -3,6 +3,7 @@ from queue import Queue, Empty
 from threading import Thread
 from copy import deepcopy
 
+
 class MessageTXRX(Thread):
 
     def __init__(self):
@@ -41,7 +42,6 @@ class SerialPortController(MessageTXRX):
                 message_to_send = self.outgoing_messages.get(False)
                 print("Serial TX: " + str(message_to_send.get_verbose()))
                 message_bytes = message_to_send.serialize()
-                print(message_bytes)
                 self.port.write(bytearray(message_bytes))
             except Empty:
                 pass
@@ -128,39 +128,40 @@ class Message(MessageCommon):
         return deepcopy(self)
 
 
-class MessageContainer(MessageCommon):
+class AbstractContainer(MessageCommon):
 
-    def __init__(self, container_id, container_name):
+    def __init__(self, container_id, container_name, max_depth=None, remaining_depth=None):
         MessageCommon.__init__(self, container_id, container_name)
-        self.prefex = []
-        if container_id is not None:
-            self.prefex = [container_id]
-
-        self.max_depth = None
-        self.remaining_depth = None
-
-        self.sub_layer_occupied = False
 
         self.sub_containers = []
-        self.messages = []
 
-    def thing(self):
+        self.max_depth = max_depth
+        self.remaining_depth = remaining_depth
+        self.sub_layer_occupied = False
+
+    def modify_depth(self):
         if self.sub_layer_occupied is False:
             self.remaining_depth -= 1
             if self.remaining_depth < 0:
                 raise ValueError("The tree is too deep!")
             self.sub_layer_occupied = True
-        print("Remaining Depth: " + str(self.remaining_depth))
 
     def add_sub_container(self, incoming_container):
         self.search_for_matching_id(incoming_container, self.sub_containers)
         incoming_container.name = self.name + "->" + incoming_container.name
         self.sub_containers.append(incoming_container)
-        print("Adding: " + str(incoming_container.name))
-        self.thing()
+        self.modify_depth()
         incoming_container.remaining_depth = self.remaining_depth
         incoming_container.max_depth = self.max_depth
         return incoming_container
+
+
+class MessageContainer(AbstractContainer):
+
+    def __init__(self, container_id, container_name):
+        AbstractContainer.__init__(self, container_id, container_name)
+        self.prefex = [container_id]
+        self.messages = []
 
     def add_message(self, incoming_message):
         self.search_for_matching_id(incoming_message, self.messages)
@@ -183,14 +184,11 @@ class MessageContainer(MessageCommon):
             self.get_messages(container, output)
 
 
-class RootContainer(MessageCommon):
+class RootContainer(AbstractContainer):
 
     def __init__(self, container_name, max_depth):
-        MessageCommon.__init__(self, 0, container_name)
-        self.sub_containers = []
+        AbstractContainer.__init__(self, 0, container_name, max_depth=max_depth, remaining_depth=max_depth)
         self.remaining_depth = max_depth
-        self.max_depth = max_depth
-        self.sub_layer_occupied = False
         self.message_length = max_depth + 2
 
     def decode_message(self, message_list):
@@ -220,24 +218,6 @@ class RootContainer(MessageCommon):
                     return message.set_payload(payload)
 
         raise ValueError("Message not found matching that stream")
-
-    def thing(self):
-        if self.sub_layer_occupied is False:
-            self.remaining_depth -= 1
-            if self.remaining_depth < 0:
-                raise ValueError("The tree is too deep!")
-            self.sub_layer_occupied = True
-        print("Remaining Depth: " + str(self.remaining_depth))
-
-    def add_sub_container(self, incoming_container):
-        self.search_for_matching_id(incoming_container, self.sub_containers)
-        incoming_container.name = self.name + "->" + incoming_container.name
-        self.sub_containers.append(incoming_container)
-        print("Adding: " + str(incoming_container.name))
-        self.thing()
-        incoming_container.remaining_depth = self.remaining_depth
-        incoming_container.max_depth = self.max_depth
-        return incoming_container
 
     def get_all_messages(self):
         output = []
